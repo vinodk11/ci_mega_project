@@ -1,0 +1,245 @@
+```groovy
+pipeline {
+
+    agent {
+        kubernetes {
+
+            yaml '''
+apiVersion: v1
+kind: Pod
+
+spec:
+
+  serviceAccountName: jenkins
+
+  containers:
+
+  - name: maven
+    image: maven:3.9.6-eclipse-temurin-17
+    command:
+    - cat
+    tty: true
+
+  - name: trivy
+    image: aquasec/trivy:latest
+    command:
+    - cat
+    tty: true
+
+  - name: docker
+    image: docker:27.0.3-dind
+    securityContext:
+      privileged: true
+    volumeMounts:
+    - name: docker-sock
+      mountPath: /var/run/docker.sock
+
+  - name: sonar
+    image: sonarsource/sonar-scanner-cli:latest
+    command:
+    - cat
+    tty: true
+
+  volumes:
+  - name: docker-sock
+    hostPath:
+      path: /var/run/docker.sock
+'''
+        }
+    }
+
+    tools {
+        maven 'maven3'
+    }
+
+    environment {
+
+        SCANNER_HOME = tool 'sonar-scanner'
+
+        IMAGE_NAME = "vinod1188/bankapp"
+
+        IMAGE_TAG = "v${BUILD_NUMBER}"
+
+        SONAR_URL = "http://sonarqube.sonarqube:9000"
+    }
+
+    stages {
+
+        stage('Git Checkout') {
+
+            steps {
+
+                git branch: 'main',
+                credentialsId: 'git',
+                url: 'https://github.com/vinodk11/ci_mega_project.git'
+            }
+        }
+
+        stage('Compile') {
+
+            steps {
+
+                container('maven') {
+
+                    sh 'mvn compile'
+                }
+            }
+        }
+
+        stage('Testing') {
+
+            steps {
+
+                container('maven') {
+
+                    sh 'mvn test'
+                }
+            }
+        }
+
+        stage('Trivy FS Scan') {
+
+            steps {
+
+                container('trivy') {
+
+                    sh 'trivy fs --format table -o fs-report.html .'
+                }
+            }
+        }
+
+        stage('Sonar Analysis') {
+
+            steps {
+
+                container('sonar') {
+
+                    withSonarQubeEnv('sonar') {
+
+                        sh '''
+                        sonar-scanner \
+                        -Dsonar.projectKey=gcbank \
+                        -Dsonar.projectName=gcbank \
+                        -Dsonar.sources=. \
+                        -Dsonar.java.binaries=target \
+                        -Dsonar.host.url=$SONAR_URL
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Quality Gate Check') {
+
+            steps {
+
+                timeout(time: 1, unit: 'HOURS') {
+
+                    waitForQualityGate abortPipeline: false
+                }
+            }
+        }
+
+        stage('Build') {
+
+            steps {
+
+                container('maven') {
+
+                    sh 'mvn package'
+                }
+            }
+        }
+
+        stage('Publish To Nexus') {
+
+            steps {
+
+                container('maven') {
+
+                    withMaven(
+                        globalMavenSettingsConfig: 'devopsshack',
+                        maven: 'maven3',
+                        traceability: true
+                    ) {
+
+                        sh 'mvn deploy'
+                    }
+                }
+            }
+        }
+
+        stage('Docker Image Build & Tag') {
+
+            steps {
+
+                container('docker') {
+
+                    script {
+
+                        withDockerRegistry(credentialsId: 'docker-cred') {
+
+                            sh '''
+                            docker build -t $IMAGE_NAME:$IMAGE_TAG .
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Scan Docker Image') {
+
+            steps {
+
+                container('trivy') {
+
+                    sh '''
+                    trivy image \
+                    --format table \
+                    -o image-report.html \
+                    $IMAGE_NAME:$IMAGE_TAG
+                    '''
+                }
+            }
+        }
+
+        stage('Push Docker Image') {
+
+            steps {
+
+                container('docker') {
+
+                    script {
+
+                        withDockerRegistry(credentialsId: 'docker-cred') {
+
+                            sh '''
+                            docker push $IMAGE_NAME:$IMAGE_TAG
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+
+        always {
+
+            archiveArtifacts artifacts: '*.html', fingerprint: true
+        }
+
+        success {
+
+            echo 'Pipeline executed successfully'
+        }
+
+        failure {
+
+            echo 'Pipeline failed'
+        }
+    }
+}
+```
