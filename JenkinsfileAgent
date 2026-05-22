@@ -92,6 +92,7 @@ spec:
 
                     sh '''
                     trivy fs \
+                    --scanners vuln \
                     --format table \
                     -o fs-report.html .
                     '''
@@ -116,6 +117,17 @@ spec:
                         -Dsonar.host.url=$SONAR_URL
                         '''
                     }
+                }
+            }
+        }
+
+        stage('Quality Gate') {
+
+            steps {
+
+                timeout(time: 10, unit: 'MINUTES') {
+
+                    waitForQualityGate abortPipeline: false
                 }
             }
         }
@@ -165,21 +177,22 @@ spec:
                         sh '''
                         mkdir -p /kaniko/.docker
 
-                        cat > /kaniko/.docker/config.json <<EOF
-                        {
-                          "auths": {
-                            "https://index.docker.io/v1/": {
-                              "username": "$DOCKER_USER",
-                              "password": "$DOCKER_PASS"
+                        AUTH=$(echo -n "$DOCKER_USER:$DOCKER_PASS" | base64 | tr -d '\\n')
+
+                        echo "{
+                          \\"auths\\": {
+                            \\"https://index.docker.io/v1/\\": {
+                              \\"auth\\": \\"$AUTH\\"
                             }
                           }
-                        }
-                        EOF
+                        }" > /kaniko/.docker/config.json
 
                         /kaniko/executor \
                           --context $(pwd) \
                           --dockerfile Dockerfile \
-                          --destination $IMAGE_NAME:$IMAGE_TAG
+                          --destination docker.io/$IMAGE_NAME:$IMAGE_TAG \
+                          --destination docker.io/$IMAGE_NAME:latest \
+                          --verbosity=debug
                         '''
                     }
                 }
@@ -194,6 +207,7 @@ spec:
 
                     sh '''
                     trivy image \
+                    --scanners vuln \
                     --format table \
                     -o image-report.html \
                     docker.io/$IMAGE_NAME:$IMAGE_TAG
