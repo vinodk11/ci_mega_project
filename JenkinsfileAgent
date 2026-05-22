@@ -6,7 +6,6 @@ pipeline {
             yaml '''
 apiVersion: v1
 kind: Pod
-
 spec:
 
   serviceAccountName: jenkins
@@ -27,20 +26,12 @@ spec:
 
   - name: docker
     image: docker:27.0.3-cli
-
     command:
     - cat
-
     tty: true
-
     volumeMounts:
     - name: docker-sock
       mountPath: /var/run/docker.sock
-
-  volumes:
-  - name: docker-sock
-    hostPath:
-      path: /var/run/docker.sock
 
   - name: sonar
     image: sonarsource/sonar-scanner-cli:latest
@@ -58,13 +49,9 @@ spec:
 
     environment {
 
-        SCANNER_HOME = tool 'sonar-scanner'
-
         IMAGE_NAME = "vinod1188/bankapp"
-
-        IMAGE_TAG = "v${BUILD_NUMBER}"
-
-        SONAR_URL = "http://sonarqube.sonarqube:9000"
+        IMAGE_TAG  = "v${BUILD_NUMBER}"
+        SONAR_URL  = "http://sonarqube.sonarqube:9000"
     }
 
     stages {
@@ -84,7 +71,6 @@ spec:
             steps {
 
                 container('maven') {
-
                     sh 'mvn compile'
                 }
             }
@@ -95,7 +81,6 @@ spec:
             steps {
 
                 container('maven') {
-
                     sh 'mvn test'
                 }
             }
@@ -106,7 +91,6 @@ spec:
             steps {
 
                 container('trivy') {
-
                     sh 'trivy fs --format table -o fs-report.html .'
                 }
             }
@@ -138,7 +122,6 @@ spec:
             steps {
 
                 timeout(time: 1, unit: 'HOURS') {
-
                     waitForQualityGate abortPipeline: false
                 }
             }
@@ -149,7 +132,6 @@ spec:
             steps {
 
                 container('maven') {
-
                     sh 'mvn package'
                 }
             }
@@ -236,14 +218,11 @@ spec:
         }
 
         success {
-
             echo 'Pipeline executed successfully'
         }
 
         failure {
-
             echo 'Pipeline failed'
         }
     }
 }
-
