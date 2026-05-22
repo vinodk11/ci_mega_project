@@ -135,11 +135,8 @@ spec:
 
                 container('maven') {
 
-                    withMaven(
-                        globalMavenSettingsConfig: 'devopsshack',
-                        maven: 'maven3',
-                        traceability: true
-                    ) {
+                   withMaven(globalMavenSettingsConfig: 'maven', traceability: true)
+                    {
 
                         sh 'mvn deploy'
                     }
