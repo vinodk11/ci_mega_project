@@ -116,7 +116,7 @@
         </repository>
         <snapshotRepository>
             <id>maven-snapshots</id>
-            <url>http://nexus.nexus:8081/repository/maven-snapshots//</url>
+            <url>http://nexus.nexus:8081/repository/maven-snapshots/</url>
         </snapshotRepository>
 
 		 </distributionManagement>
