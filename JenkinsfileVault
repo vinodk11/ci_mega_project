@@ -1,15 +1,18 @@
 pipeline {
 
     agent {
-        kubernetes {
+         kubernetes {
 
-            yaml '''
+    yaml '''
 apiVersion: v1
 kind: Pod
 
 spec:
-
   serviceAccountName: jenkins
+
+  volumes:
+  - name: m2-cache
+    emptyDir: {}
 
   containers:
 
@@ -18,12 +21,18 @@ spec:
     command:
     - cat
     tty: true
+    volumeMounts:
+    - name: m2-cache
+      mountPath: /root/.m2
 
   - name: trivy
     image: aquasec/trivy:latest
     command:
     - cat
     tty: true
+    volumeMounts:
+    - name: m2-cache
+      mountPath: /root/.m2
 
   - name: sonar
     image: sonarsource/sonar-scanner-cli:latest
@@ -36,10 +45,10 @@ spec:
     command:
     - sleep
     args:
-    - "999999"
+    - "9999999"
     tty: true
 '''
-        }
+}
     }
 
     environment {
